@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RAG Agent — тестирование</title>
+  <style>
+    :root {
+      --bg: #0f0f12;
+      --surface: #1a1a1f;
+      --border: #2a2a32;
+      --text: #e4e4e7;
+      --muted: #71717a;
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --success: #22c55e;
+      --error: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 2rem;
+      line-height: 1.5;
+    }
+    h1 { font-size: 1.5rem; margin-top: 0; }
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    .section h2 {
+      font-size: 1rem;
+      margin: 0 0 0.75rem 0;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    input[type="text"],
+    input[type="file"] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      width: 100%;
+      margin-bottom: 0.75rem;
+    }
+    input[type="file"] { padding: 0.4rem 0; }
+    button {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    button:hover { background: var(--accent-hover); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .out {
+      margin-top: 0.75rem;
+      padding: 0.75rem;
+      background: var(--bg);
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      font-family: ui-monospace, monospace;
+      font-size: 0.85rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-height: 2.5rem;
+    }
+    .out.empty { color: var(--muted); }
+    .out.error { border-color: var(--error); color: var(--error); }
+    .out.success { border-color: var(--success); }
+    .base-url {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+    .base-url input { width: auto; display: inline-block; margin: 0 0.5rem 0 0; max-width: 20rem; }
+  </style>
+</head>
+<body>
+  <h1>RAG Agent — тестирование</h1>
+  <p class="base-url">
+    <label>Base URL: <input type="text" id="baseUrl" value="http://localhost:3000/api/v1/agent/rag" /></label>
+  </p>
+
+  <section class="section">
+    <h2>GET /status</h2>
+    <button type="button" id="btnStatus">Запросить статус</button>
+    <div class="out empty" id="outStatus">Ответ появится здесь.</div>
+  </section>
+
+  <section class="section">
+    <h2>POST /upload</h2>
+    <input type="file" id="fileUpload" accept=".pdf,.txt" />
+    <button type="button" id="btnUpload">Загрузить документ</button>
+    <div class="out empty" id="outUpload">Ответ появится здесь.</div>
+  </section>
+
+  <section class="section">
+    <h2>POST /ask</h2>
+    <input type="text" id="question" placeholder="Введите вопрос по загруженным документам" />
+    <button type="button" id="btnAsk">Задать вопрос</button>
+    <div class="out empty" id="outAsk">Ответ появится здесь.</div>
+  </section>
+
+  <script>
+    function baseUrl() {
+      return (document.getElementById('baseUrl').value || '').replace(/\/$/, '');
+    }
+
+    function setOut(id, text, isError) {
+      const el = document.getElementById(id);
+      el.textContent = text ?? '';
+      el.classList.remove('empty', 'error', 'success');
+      if (!text) el.classList.add('empty');
+      else if (isError) el.classList.add('error');
+      else el.classList.add('success');
+    }
+
+    document.getElementById('btnStatus').addEventListener('click', async () => {
+      const out = document.getElementById('outStatus');
+      setOut('outStatus', 'Запрос…');
+      try {
+        const r = await fetch(baseUrl() + '/status');
+        const data = await r.json().catch(() => ({}));
+        const text = r.ok ? JSON.stringify(data, null, 2) : `HTTP ${r.status}: ${JSON.stringify(data)}`;
+        setOut('outStatus', text, !r.ok);
+      } catch (e) {
+        setOut('outStatus', 'Ошибка: ' + e.message, true);
+      }
+    });
+
+    document.getElementById('btnUpload').addEventListener('click', async () => {
+      const input = document.getElementById('fileUpload');
+      if (!input.files?.length) {
+        setOut('outUpload', 'Выберите файл (PDF или TXT).', true);
+        return;
+      }
+      setOut('outUpload', 'Загрузка…');
+      const form = new FormData();
+      form.append('file', input.files[0]);
+      try {
+        const r = await fetch(baseUrl() + '/upload', { method: 'POST', body: form });
+        const data = await r.json().catch(() => ({}));
+        const text = r.ok ? JSON.stringify(data, null, 2) : `HTTP ${r.status}: ${JSON.stringify(data)}`;
+        setOut('outUpload', text, !r.ok);
+      } catch (e) {
+        setOut('outUpload', 'Ошибка: ' + e.message, true);
+      }
+    });
+
+    document.getElementById('btnAsk').addEventListener('click', async () => {
+      const question = document.getElementById('question').value?.trim();
+      if (!question) {
+        setOut('outAsk', 'Введите вопрос.', true);
+        return;
+      }
+      setOut('outAsk', 'Ожидание ответа…');
+      try {
+        const r = await fetch(baseUrl() + '/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question }),
+        });
+        const data = await r.json().catch(() => ({}));
+        const text = r.ok ? JSON.stringify(data, null, 2) : `HTTP ${r.status}: ${JSON.stringify(data)}`;
+        setOut('outAsk', text, !r.ok);
+      } catch (e) {
+        setOut('outAsk', 'Ошибка: ' + e.message, true);
+      }
+    });
+  </script>
+</body>
+</html>

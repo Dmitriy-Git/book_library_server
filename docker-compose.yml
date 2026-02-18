@@ -1,0 +1,11 @@
+services:
+  chroma:
+    image: chromadb/chroma
+    container_name: book-library-chroma
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+
+volumes:
+  chroma_data:
