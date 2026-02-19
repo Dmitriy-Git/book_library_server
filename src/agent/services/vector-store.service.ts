@@ -4,7 +4,8 @@ import type { Document } from 'langchain';
 import { Chroma } from '@langchain/community/vectorstores/chroma';
 import { BaseRetriever } from '@langchain/core/dist/retrievers';
 import { GigaChatEmbeddings } from 'langchain-gigachat/embeddings';
-import { RAG_CONSTANTS } from './constants';
+import { RAG_CONSTANTS } from '../constants';
+import { ChromaDBErrorHandler } from './chromadb-error-handler.service';
 
 @Injectable()
 export class VectorStoreService {
@@ -13,7 +14,10 @@ export class VectorStoreService {
   private store!: Chroma;
   private embeddings!: GigaChatEmbeddings;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly chromaErrorHandler: ChromaDBErrorHandler,
+  ) {}
 
   /**
    * Устанавливает embeddings, переданные из RagService, и инициализирует Chroma store.
@@ -73,7 +77,8 @@ export class VectorStoreService {
         `Chroma addDocuments failed: ${(err as Error).message}`,
       );
 
-      throw err;
+      // Используем хелпер для обработки ошибок ChromaDB
+      this.chromaErrorHandler.handleError(err, 'addDocuments');
     }
   }
 
@@ -83,11 +88,19 @@ export class VectorStoreService {
    *
    * @param k - Количество документов для извлечения (по умолчанию из RAG_CONSTANTS.DEFAULT_RETRIEVER_K)
    * @returns BaseRetriever для использования в RAG цепочке
-   * @throws {Error} Если хранилище не инициализировано
+   * @throws {ChromaDBException} Если хранилище не инициализировано или недоступно
    */
   getRetriever(k: number = RAG_CONSTANTS.DEFAULT_RETRIEVER_K): BaseRetriever {
-    const store = this.getStore();
-    return store.asRetriever({ k });
+    try {
+      const store = this.getStore();
+      if (!store) {
+        throw new Error('Векторное хранилище не инициализировано');
+      }
+      return store.asRetriever({ k });
+    } catch (err) {
+      // Используем хелпер для обработки ошибок ChromaDB
+      this.chromaErrorHandler.handleError(err, 'getRetriever');
+    }
   }
 
   /**

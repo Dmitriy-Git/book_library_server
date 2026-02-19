@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import type { Document } from 'langchain';
-import { RAG_CONSTANTS } from './constants';
+import { RAG_CONSTANTS } from '../constants';
 
 @Injectable()
 export class TextSplitterService {

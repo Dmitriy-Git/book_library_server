@@ -14,7 +14,8 @@ import { GigaChat } from 'langchain-gigachat/chat_models';
 import { GigaChatEmbeddings } from 'langchain-gigachat/embeddings';
 import { Agent } from 'node:https';
 import { VectorStoreService } from './vector-store.service';
-import { RAG_CONSTANTS } from './constants';
+import { RAG_CONSTANTS } from '../constants';
+import { ChromaDBErrorHandler } from './chromadb-error-handler.service';
 
 const RAG_SYSTEM = `Ты — помощник, отвечающий на вопросы по загруженным документам.
 Отвечай строго на основе приведённого контекста. Если в контексте нет ответа — так и скажи.`;
@@ -42,6 +43,7 @@ export class RagService implements OnModuleInit {
   constructor(
     private readonly configService: ConfigService,
     private readonly vectorStore: VectorStoreService,
+    private readonly chromaErrorHandler: ChromaDBErrorHandler,
   ) {}
 
   /**
@@ -107,21 +109,10 @@ export class RagService implements OnModuleInit {
   }
 
   /**
-   * Проверяет, является ли ошибка связанной с ChromaDB (недоступность).
-   */
-  private isChromaConnectionError(err: unknown): boolean {
-    const msg = (err as Error).message ?? '';
-
-    return (
-      (err as Error).name === 'ChromaConnectionError' ||
-      msg.includes('Failed to connect to chromadb')
-    );
-  }
-
-  /**
    * @param question - Вопрос пользователя (должен соответствовать валидации DTO)
    * @returns Объект с ответом и опциональным контекстом из документов
-   * @throws {Error} Если произошла ошибка при обработке (кроме ChromaDB — тогда fallback на общий ассистент)
+   * @throws {ChromaDBException} Если произошла ошибка ChromaDB (будет обработана фильтром)
+   * @throws {Error} Если произошла другая ошибка при обработке
    */
   async ask(
     question: string,
@@ -140,13 +131,16 @@ export class RagService implements OnModuleInit {
         context: result.context,
       };
     } catch (err) {
-      if (this.isChromaConnectionError(err)) {
+      // Если это ошибка ChromaDB, делаем fallback на general assistant
+      // Это бизнес-логика специфичная для метода ask
+      if (this.chromaErrorHandler.isChromaError(err)) {
         this.logger.warn(
           'ChromaDB unavailable, falling back to general assistant',
         );
         return this.askGeneralAssistant(question);
       }
-      
+
+      // Остальные ошибки логируем и пробрасываем
       this.logger.error(
         `RAG ask failed: ${(err as Error).message}`,
         (err as Error).stack,

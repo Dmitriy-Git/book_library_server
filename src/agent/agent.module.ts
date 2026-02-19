@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
 import { RagController } from './rag.controller';
-import { DocumentLoaderService } from './document-loader.service';
-import { RagService } from './rag.service';
-import { TextSplitterService } from './text-splitter.service';
-import { VectorStoreService } from './vector-store.service';
+import { DocumentLoaderService } from './services/document-loader.service';
+import { RagService } from './services/rag.service';
+import { TextSplitterService } from './services/text-splitter.service';
+import { VectorStoreService } from './services/vector-store.service';
+import { ChromaDBErrorHandler } from './services/chromadb-error-handler.service';
 
 @Module({
   controllers: [RagController],
@@ -12,12 +13,14 @@ import { VectorStoreService } from './vector-store.service';
     RagService,
     TextSplitterService,
     VectorStoreService,
+    ChromaDBErrorHandler,
   ],
   exports: [
     DocumentLoaderService,
     RagService,
     TextSplitterService,
     VectorStoreService,
+    ChromaDBErrorHandler,
   ],
 })
 export class AgentModule { }
