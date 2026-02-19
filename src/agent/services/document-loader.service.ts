@@ -50,7 +50,9 @@ export class DocumentLoaderService {
       await fs.writeFile(tmpPath, file.buffer);
       const loader = isPdf ? new PDFLoader(tmpPath) : new TextLoader(tmpPath);
       const docs = await loader.load();
+      
       this.logger.log(`Loaded ${docs.length} document(s) from ${file.originalname}`);
+
       return docs;
     } catch (err) {
       this.logger.error(`Document load failed: ${(err as Error).message}`, (err as Error).stack);

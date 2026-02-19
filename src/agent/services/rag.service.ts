@@ -73,7 +73,7 @@ export class RagService implements OnModuleInit {
       httpsAgent,
     });
 
-    this.vectorStore.setEmbeddings(this.embeddings);
+    this.vectorStore.initializeStore(this.embeddings);
     const retriever = this.vectorStore.getRetriever(RAG_CONSTANTS.DEFAULT_RETRIEVER_K);
 
     const combineDocsChain = await createStuffDocumentsChain({
@@ -126,6 +126,7 @@ export class RagService implements OnModuleInit {
       }
 
       const result = await this.chain.invoke({ input: question });
+
       return {
         answer: result.answer,
         context: result.context,
@@ -134,9 +135,6 @@ export class RagService implements OnModuleInit {
       // Если это ошибка ChromaDB, делаем fallback на general assistant
       // Это бизнес-логика специфичная для метода ask
       if (this.chromaErrorHandler.isChromaError(err)) {
-        this.logger.warn(
-          'ChromaDB unavailable, falling back to general assistant',
-        );
         return this.askGeneralAssistant(question);
       }
 
@@ -145,6 +143,7 @@ export class RagService implements OnModuleInit {
         `RAG ask failed: ${(err as Error).message}`,
         (err as Error).stack,
       );
+      
       throw err;
     }
   }

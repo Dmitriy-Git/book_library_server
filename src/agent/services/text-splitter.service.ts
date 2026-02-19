@@ -24,10 +24,9 @@ export class TextSplitterService {
             this.logger.warn('splitDocuments called with empty array');
             return [];
         }
+
         const chunks = await this.splitter.splitDocuments(documents);
-        this.logger.log(
-            `Split ${documents.length} document(s) into ${chunks.length} chunk(s)`,
-        );
+
         return chunks;
     }
 }

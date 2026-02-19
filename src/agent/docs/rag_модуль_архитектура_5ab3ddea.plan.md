@@ -96,7 +96,7 @@ GigaChat LLM генерирует ответ на основе контекст�
 
 При старте модуля:
 1. RagService.onModuleInit() создает GigaChat LLM и Embeddings
-2. VectorStoreService.setEmbeddings() инициализирует Chroma
+2. VectorStoreService.initializeStore() инициализирует Chroma
 3. RagService настраивает RAG цепочку с retriever и combineDocsChain
 
 ## Диаграмма архитектуры
@@ -117,7 +117,7 @@ graph TB
     TextSplitter -->|RecursiveCharacterTextSplitter| Chunks[Document Chunks]
     Chunks --> VectorStore
     
-    RagService -->|setEmbeddings| VectorStore
+    RagService -->|initializeStore| VectorStore
     RagService -->|getRetriever| VectorStore
     RagService -->|RetrievalChain| LLM[GigaChat LLM]
     VectorStore -->|Chroma| ChromaDB[(Chroma Vector DB)]

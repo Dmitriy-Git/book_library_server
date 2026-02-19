@@ -11,8 +11,7 @@ import { ChromaDBErrorHandler } from './chromadb-error-handler.service';
 export class VectorStoreService {
   private readonly logger = new Logger(VectorStoreService.name);
 
-  private store!: Chroma;
-  private embeddings!: GigaChatEmbeddings;
+  private store: Chroma;
 
   constructor(
     private readonly configService: ConfigService,
@@ -20,23 +19,11 @@ export class VectorStoreService {
   ) {}
 
   /**
-   * Устанавливает embeddings, переданные из RagService, и инициализирует Chroma store.
-   * Должен быть вызван при инициализации модуля перед использованием других методов.
-   *
+   * Инициализирует Chroma векторное хранилище.
    * @param embeddings - Экземпляр GigaChatEmbeddings для создания векторных представлений
    * @throws {Error} Если CHROMA_DB_PATH или CHROMA_COLLECTION_NAME не установлены
    */
-  setEmbeddings(embeddings: GigaChatEmbeddings): void {
-    this.embeddings = embeddings;
-    this.initializeStore();
-  }
-
-  /**
-   * Инициализирует Chroma векторное хранилище.
-   */
-  private initializeStore(): void {
-    if (this.store) return;
-
+  initializeStore(embeddings: GigaChatEmbeddings): void {
     const dbPath = this.configService.get<string>('CHROMA_DB_PATH') ?? '';
     const collectionName = this.configService.get<string>('CHROMA_COLLECTION_NAME') ?? '';
 
@@ -46,14 +33,10 @@ export class VectorStoreService {
       );
     }
 
-    this.store = new Chroma(this.embeddings, {
+    this.store = new Chroma(embeddings, {
       url: dbPath,
       collectionName,
     });
-  }
-
-  private getStore(): Chroma {
-    return this.store;
   }
 
   /**
@@ -68,16 +51,10 @@ export class VectorStoreService {
     if (!documents?.length) return [];
 
     try {
-      const store = this.getStore();
-      const ids = await store.addDocuments(documents);
+      const ids = await this.store.addDocuments(documents);
 
       return ids;
     } catch (err) {
-      this.logger.error(
-        `Chroma addDocuments failed: ${(err as Error).message}`,
-      );
-
-      // Используем хелпер для обработки ошибок ChromaDB
       this.chromaErrorHandler.handleError(err, 'addDocuments');
     }
   }
@@ -92,13 +69,8 @@ export class VectorStoreService {
    */
   getRetriever(k: number = RAG_CONSTANTS.DEFAULT_RETRIEVER_K): BaseRetriever {
     try {
-      const store = this.getStore();
-      if (!store) {
-        throw new Error('Векторное хранилище не инициализировано');
-      }
-      return store.asRetriever({ k });
+      return this.store.asRetriever({ k });
     } catch (err) {
-      // Используем хелпер для обработки ошибок ChromaDB
       this.chromaErrorHandler.handleError(err, 'getRetriever');
     }
   }
@@ -111,13 +83,14 @@ export class VectorStoreService {
    */
   async getStatus(): Promise<{ documentCount: number }> {
     try {
-      const store = this.getStore();
-      const collection = await store.ensureCollection();
+      const collection = await this.store.ensureCollection();
+
       const count =
         typeof (collection as { count?: () => Promise<number> }).count ===
-        'function'
+          'function'
           ? await (collection as { count: () => Promise<number> }).count()
           : 0;
+
       return { documentCount: count };
     } catch (err) {
       this.logger.error(
