@@ -1,18 +1,18 @@
 import { Module } from '@nestjs/common';
 import { RagController } from './rag.controller';
-import { DocumentLoaderService } from './services/document-loader.service';
-import { RagService } from './services/rag.service';
-import { TextSplitterService } from './services/text-splitter.service';
-import { VectorStoreService } from './services/vector-store.service';
+import { RagService } from './services/stage-generation/rag.service';
+import { DocumentLoaderService } from './services/stage-data-preparation/document-loader.service';
+import { TextSplitterService } from './services/stage-data-preparation/text-splitter.service';
+import { VectorStoreService } from './services/stage-embedding-store/vector-store.service';
 import { ChromaDBErrorHandler } from './services/chromadb-error-handler.service';
 
 @Module({
   controllers: [RagController],
   providers: [
     DocumentLoaderService,
-    RagService,
     TextSplitterService,
     VectorStoreService,
+    RagService,
     ChromaDBErrorHandler,
   ],
   exports: [

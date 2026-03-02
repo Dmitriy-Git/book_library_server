@@ -8,10 +8,10 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { DocumentLoaderService, type UploadedFileInput } from './services/document-loader.service';
-import { TextSplitterService } from './services/text-splitter.service';
-import { VectorStoreService } from './services/vector-store.service';
-import { RagService } from './services/rag.service';
+import { DocumentLoaderService, type UploadedFileInput } from './services/stage-data-preparation/document-loader.service';
+import { TextSplitterService } from './services/stage-data-preparation/text-splitter.service';
+import { VectorStoreService } from './services/stage-embedding-store/vector-store.service';
+import { RagService } from './services/stage-generation/rag.service';
 import { AskQuestionDto } from './dto/ask-question.dto';
 
 @Controller('agent/rag')

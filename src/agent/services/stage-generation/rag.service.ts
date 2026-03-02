@@ -1,3 +1,4 @@
+import * as https from 'node:https';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createRetrievalChain } from '@langchain/classic/chains/retrieval';
@@ -11,11 +12,9 @@ import {
 } from '@langchain/core/prompts';
 import { SystemMessage, HumanMessage } from '@langchain/core/messages';
 import { GigaChat } from 'langchain-gigachat/chat_models';
-import { GigaChatEmbeddings } from 'langchain-gigachat/embeddings';
-import { Agent } from 'node:https';
-import { VectorStoreService } from './vector-store.service';
-import { RAG_CONSTANTS } from '../constants';
-import { ChromaDBErrorHandler } from './chromadb-error-handler.service';
+import { VectorStoreService } from '../stage-embedding-store/vector-store.service';
+import { RAG_CONSTANTS } from '../../constants';
+import { ChromaDBErrorHandler } from '../chromadb-error-handler.service';
 
 const RAG_SYSTEM = `Ты — помощник, отвечающий на вопросы по загруженным документам.
 Отвечай строго на основе приведённого контекста. Если в контексте нет ответа — так и скажи.`;
@@ -29,6 +28,9 @@ const ragPrompt = ChatPromptTemplate.fromMessages([
   ),
 ]);
 
+/**
+ * Этап 3 пайплайна RAG: запрос к векторному датасету и генерация ответа LLM.
+ */
 @Injectable()
 export class RagService implements OnModuleInit {
   private readonly logger = new Logger(RagService.name);
@@ -38,7 +40,6 @@ export class RagService implements OnModuleInit {
   >;
 
   private llm!: GigaChat;
-  private embeddings!: GigaChatEmbeddings;
 
   constructor(
     private readonly configService: ConfigService,
@@ -47,17 +48,20 @@ export class RagService implements OnModuleInit {
   ) {}
 
   /**
-   * Инициализирует RAG сервис при старте модуля.
-   * Создает GigaChat модель, GigaChatEmbeddings, инициализирует векторное хранилище
-   * и настраивает RAG цепочку для ответов на вопросы.
-   *
-   * @throws {Error} Если GIGACHAT_API_KEY не установлен в переменных окружения
+   * Инициализирует RAG при старте модуля: создаёт LLM и цепочку retrieval + generation.
+   * Векторное хранилище и эмбеддинги инициализируются в VectorStoreService (этап 2).
    */
   async onModuleInit(): Promise<void> {
     const credentials = this.configService.get<string>('GIGACHAT_API_KEY') ?? '';
     const baseUrl = this.configService.get<string>('GIGACHAT_API_URL') ?? '';
 
-    const httpsAgent = new Agent({
+    if (!credentials || !baseUrl) {
+      throw new Error(
+        'GIGACHAT_API_KEY and GIGACHAT_API_URL must be set in environment',
+      );
+    }
+
+    const httpsAgent = new https.Agent({
       rejectUnauthorized: false,
     });
 
@@ -67,14 +71,9 @@ export class RagService implements OnModuleInit {
       httpsAgent,
     });
 
-    this.embeddings = new GigaChatEmbeddings({
-      credentials,
-      baseUrl,
-      httpsAgent,
-    });
-
-    this.vectorStore.initializeStore(this.embeddings);
-    const retriever = this.vectorStore.getRetriever(RAG_CONSTANTS.DEFAULT_RETRIEVER_K);
+    const retriever = this.vectorStore.getRetriever(
+      RAG_CONSTANTS.DEFAULT_RETRIEVER_K,
+    );
 
     const combineDocsChain = await createStuffDocumentsChain({
       llm: this.llm,
@@ -88,8 +87,7 @@ export class RagService implements OnModuleInit {
   }
 
   /**
-   * Вызов LLM напрямую без RAG (режим общего ассистента).
-   * Используется при documentCount === 0 или при недоступности ChromaDB.
+   * Режим общего ассистента без RAG (при пустом хранилище или ошибке ChromaDB).
    */
   private async askGeneralAssistant(
     question: string,
@@ -109,10 +107,10 @@ export class RagService implements OnModuleInit {
   }
 
   /**
-   * @param question - Вопрос пользователя (должен соответствовать валидации DTO)
-   * @returns Объект с ответом и опциональным контекстом из документов
-   * @throws {ChromaDBException} Если произошла ошибка ChromaDB (будет обработана фильтром)
-   * @throws {Error} Если произошла другая ошибка при обработке
+   * Запрос к векторному датасету и генерация ответа на основе дополненного ввода.
+   *
+   * @param question - Вопрос пользователя (валидация через DTO)
+   * @returns Ответ и опциональный контекст из документов
    */
   async ask(
     question: string,
@@ -132,18 +130,15 @@ export class RagService implements OnModuleInit {
         context: result.context,
       };
     } catch (err) {
-      // Если это ошибка ChromaDB, делаем fallback на general assistant
-      // Это бизнес-логика специфичная для метода ask
       if (this.chromaErrorHandler.isChromaError(err)) {
         return this.askGeneralAssistant(question);
       }
 
-      // Остальные ошибки логируем и пробрасываем
       this.logger.error(
         `RAG ask failed: ${(err as Error).message}`,
         (err as Error).stack,
       );
-      
+
       throw err;
     }
   }
