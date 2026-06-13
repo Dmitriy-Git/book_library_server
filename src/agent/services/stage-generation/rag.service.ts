@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { createRetrievalChain } from '@langchain/classic/chains/retrieval';
 import { createStuffDocumentsChain } from '@langchain/classic/chains/combine_documents';
 import type { Runnable } from '@langchain/core/runnables';
+import type { LanguageModelLike } from '@langchain/core/language_models/base';
 import type { Document } from '@langchain/core/documents';
 import {
   ChatPromptTemplate,
@@ -76,7 +77,7 @@ export class RagService implements OnModuleInit {
     );
 
     const combineDocsChain = await createStuffDocumentsChain({
-      llm: this.llm,
+      llm: this.llm as unknown as LanguageModelLike,
       prompt: ragPrompt,
     });
 
